@@ -28,7 +28,7 @@ export default function Galeria() {
         if (!res.ok) throw new Error("Error cargando galería");
 
         const data = await res.json();
-        if (data.ok && Array.isArray(data.photos)) setAllPhotos(data.photos);
+        if (data.success && Array.isArray(data.photos)) setAllPhotos(data.photos);
         else setAllPhotos([]);
       } catch (err) {
         console.error(err);
@@ -41,7 +41,7 @@ export default function Galeria() {
     if (!loading) loadPhotos();
   }, [loading]);
 
-  // 📤 Subir foto
+  // 📤 Subir foto - CORREGIDO: Cambiado de "image" a "photo"
   const handlePhotoUpload = async (e) => {
     if (!user || !token) return setMessage("❌ Debes iniciar sesión");
 
@@ -55,9 +55,13 @@ export default function Galeria() {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("image", file);
+      // 🔥 CORRECCIÓN: Cambiado de "image" a "photo"
+      formData.append("photo", file);
       formData.append("description", "Compartiendo mi experiencia en Ecolibres");
+      formData.append("location", "Libres, Puebla");
       formData.append("isPublic", "true");
+
+      console.log('📤 Enviando foto con campo:', "photo");
 
       const res = await fetch("http://localhost:5000/api/user/upload-photo", {
         method: "POST",
@@ -66,11 +70,20 @@ export default function Galeria() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      
+      if (!res.ok) {
+        console.error('❌ Error del servidor:', data);
+        throw new Error(data.error || `Error ${res.status}: ${res.statusText}`);
+      }
 
-      setAllPhotos((prev) => [data.photo, ...prev]);
-      setMessage("✅ Foto subida correctamente");
+      if (data.success) {
+        setAllPhotos((prev) => [data.photo, ...prev]);
+        setMessage("✅ Foto subida correctamente");
+      } else {
+        throw new Error(data.error || "Error desconocido");
+      }
     } catch (err) {
+      console.error("❌ Error completo al subir:", err);
       setMessage("❌ No se pudo subir la imagen: " + err.message);
     } finally {
       setUploading(false);

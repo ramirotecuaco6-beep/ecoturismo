@@ -155,7 +155,7 @@ export const uploadPhoto = async (req, res) => {
       return res.status(400).json({ error: "No se proporcionó imagen" });
     }
 
-    if (req.file.size > 10 * 1024 * 1024) {
+    if (req.file.size > 40 * 1024 * 1024) {
       return res.status(400).json({ error: "Imagen demasiado grande (máximo 10MB)" });
     }
 
