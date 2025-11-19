@@ -32,7 +32,17 @@ export default function AuthModal({ onClose }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null); // ✅ Nuevo estado para éxito
   const [isLoading, setIsLoading] = useState(false);
+
+  // Reset estados cuando cambia la vista
+  const toggleView = () => {
+    setIsLoginView((s) => !s);
+    setError(null);
+    setSuccess(null);
+    setEmail("");
+    setPassword("");
+  };
 
   // 🚀 Nueva función para sincronizar usuario con backend
   const syncWithBackend = async (user) => {
@@ -79,6 +89,7 @@ export default function AuthModal({ onClose }) {
   const handleAuth = async (event) => {
     event.preventDefault();
     setError(null);
+    setSuccess(null);
 
     if (!email || !password) {
       setError("Por favor, introduce tu correo y contraseña.");
@@ -99,22 +110,38 @@ export default function AuthModal({ onClose }) {
         console.log("Intentando Iniciar Sesión...");
         userCredential = await login(email, password);
         console.log("Inicio de sesión exitoso");
+        setSuccess("¡Inicio de sesión exitoso!");
       } else {
         console.log("Intentando Registrar Usuario...");
         userCredential = await register(email, password);
-        console.log("Registro exitoso");
+        console.log("Registro exitoso - Usuario creado en Firebase");
+        setSuccess("¡Registro exitoso! Sincronizando...");
       }
 
-      // ✅ Llamada al backend para sincronizar usuario y guardar token en localStorage
+      // ✅ Llamada al backend para sincronizar usuario
       const syncResult = await syncWithBackend(userCredential.user);
 
       if (!syncResult.ok) {
-        // no bloqueamos el flujo por un fallo de sync, pero avisamos
         console.warn("Advertencia: fallo sincronizando con backend:", syncResult.error);
+        if (!isLoginView) {
+          setSuccess("Cuenta creada, pero hubo un problema de sincronización. Puedes iniciar sesión.");
+        }
+      } else {
+        // ✅ FEEDBACK VISUAL MEJORADO
+        if (!isLoginView) {
+          console.log("✅ Registro completado exitosamente");
+          setSuccess("¡Registro completado! Redirigiendo...");
+        } else {
+          setSuccess("¡Sesión iniciada! Redirigiendo...");
+        }
+        
+        // Pequeño delay para que el usuario vea el mensaje de éxito
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
 
-      // Cierra el modal si todo va bien en el auth local (login/register)
+      // ✅ Cierra el modal después de autenticación exitosa
       onClose();
+
     } catch (err) {
       const errorCode = err.code;
       let userFriendlyMessage =
@@ -131,6 +158,8 @@ export default function AuthModal({ onClose }) {
           "Credenciales inválidas. Verifica tu correo o contraseña.";
       } else if (errorCode === "auth/network-request-failed") {
         userFriendlyMessage = "Problema de red. Revisa tu conexión a Internet.";
+      } else if (errorCode === "auth/too-many-requests") {
+        userFriendlyMessage = "Demasiados intentos. Intenta más tarde.";
       }
 
       setError(userFriendlyMessage);
@@ -193,16 +222,28 @@ export default function AuthModal({ onClose }) {
             />
           </div>
 
+          {/* ✅ Mensajes de éxito */}
+          {success && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-700 text-sm font-medium text-center">
+                {success}
+              </p>
+            </div>
+          )}
+
+          {/* ❌ Mensajes de error */}
           {error && (
-            <p className="text-red-500 text-sm font-medium text-center transition-opacity duration-300">
-              {error}
-            </p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-700 text-sm font-medium text-center">
+                {error}
+              </p>
+            </div>
           )}
 
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300 mt-5 flex items-center justify-center disabled:bg-green-400"
+            className="w-full bg-green-600 text-white py-3 rounded-xl font-semibold hover:bg-green-700 transition-all duration-300 mt-5 flex items-center justify-center disabled:bg-green-400 disabled:cursor-not-allowed"
           >
             {isLoading ? (
               <>
@@ -220,12 +261,7 @@ export default function AuthModal({ onClose }) {
         <p className="text-center text-sm mt-4 text-gray-600">
           {isLoginView ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}
           <button
-            onClick={() => {
-              setIsLoginView((s) => !s);
-              setError(null);
-              setEmail("");
-              setPassword("");
-            }}
+            onClick={toggleView}
             disabled={isLoading}
             className="text-green-600 font-semibold ml-2 hover:text-green-700 transition-colors disabled:text-gray-400"
             type="button"
@@ -236,7 +272,7 @@ export default function AuthModal({ onClose }) {
 
         <div className="mt-6 border-t pt-4">
           <button
-            className="w-full flex items-center justify-center bg-red-500 text-white py-2 rounded-lg font-medium hover:bg-red-600 transition-all duration-300 disabled:bg-gray-400"
+            className="w-full flex items-center justify-center bg-red-500 text-white py-2 rounded-lg font-medium hover:bg-red-600 transition-all duration-300 disabled:bg-gray-400 disabled:cursor-not-allowed"
             disabled={isLoading}
           >
             <span className="text-xl mr-2">G</span>

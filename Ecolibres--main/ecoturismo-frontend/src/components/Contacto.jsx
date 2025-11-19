@@ -1,4 +1,66 @@
+import React, { useState } from "react";
+
 export default function Contacto() {
+  const [formData, setFormData] = useState({
+    nombre: "",
+    email: "",
+    asunto: "",
+    mensaje: ""
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    // Validación básica
+    if (!formData.nombre || !formData.email || !formData.mensaje) {
+      setMessage("❌ Por favor completa todos los campos obligatorios");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage("");
+
+    try {
+      // ✅ ENVÍO REAL AL BACKEND - REEMPLAZA LA SIMULACIÓN
+      const response = await fetch('http://localhost:5000/api/contacto', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMessage("✅ ¡Mensaje enviado! Los administradores te contactarán en menos de 24 horas.");
+        setFormData({
+          nombre: "",
+          email: "",
+          asunto: "",
+          mensaje: ""
+        });
+      } else {
+        throw new Error(data.error || 'Error al enviar el mensaje');
+      }
+
+    } catch (error) {
+      console.error("Error enviando formulario:", error);
+      setMessage("❌ Error al enviar el mensaje. Por favor intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <section id="contacto" className="py-24 px-6 bg-gradient-to-br from-gray-900 to-primary-900 relative overflow-hidden">
       {/* Elementos decorativos de fondo */}
@@ -17,7 +79,7 @@ export default function Contacto() {
             </h2>
             <p className="text-xl text-white/80 mb-8 leading-relaxed">
               Estamos aquí para ayudarte a planificar la experiencia perfecta en Libres. 
-              Respondeemos todas tus preguntas en menos de 24 horas.
+              Respondemos todas tus preguntas en menos de 24 horas.
             </p>
             
             <div className="space-y-4">
@@ -39,26 +101,34 @@ export default function Contacto() {
           
           {/* Formulario */}
           <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-8 animate-fade-in">
-            <form className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-white/80 text-sm font-semibold mb-2">
-                    Nombre completo
+                    Nombre completo *
                   </label>
                   <input 
                     type="text" 
+                    name="nombre"
+                    value={formData.nombre}
+                    onChange={handleChange}
                     className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all"
                     placeholder="Tu nombre"
+                    required
                   />
                 </div>
                 <div>
                   <label className="block text-white/80 text-sm font-semibold mb-2">
-                    Correo electrónico
+                    Correo electrónico *
                   </label>
                   <input 
                     type="email" 
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
                     className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all"
                     placeholder="tu@email.com"
+                    required
                   />
                 </div>
               </div>
@@ -69,6 +139,9 @@ export default function Contacto() {
                 </label>
                 <input 
                   type="text" 
+                  name="asunto"
+                  value={formData.asunto}
+                  onChange={handleChange}
                   className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all"
                   placeholder="¿En qué podemos ayudarte?"
                 />
@@ -76,24 +149,53 @@ export default function Contacto() {
               
               <div>
                 <label className="block text-white/80 text-sm font-semibold mb-2">
-                  Mensaje
+                  Mensaje *
                 </label>
                 <textarea 
                   rows="5"
+                  name="mensaje"
+                  value={formData.mensaje}
+                  onChange={handleChange}
                   className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:border-transparent transition-all resize-none"
                   placeholder="Cuéntanos sobre tu aventura ideal..."
+                  required
                 />
               </div>
+
+              {/* Mensaje de estado */}
+              {message && (
+                <div className={`p-3 rounded-xl text-center font-semibold ${
+                  message.includes("✅") 
+                    ? "bg-green-500/20 text-green-300 border border-green-500/30" 
+                    : "bg-red-500/20 text-red-300 border border-red-500/30"
+                }`}>
+                  {message}
+                </div>
+              )}
               
               <button 
                 type="submit"
-                className="w-full btn-accent text-lg py-4 rounded-2xl flex items-center justify-center gap-3 group"
+                disabled={isSubmitting}
+                className="w-full bg-gradient-to-r from-accent-500 to-secondary-500 hover:from-accent-600 hover:to-secondary-600 text-white text-lg py-4 rounded-2xl flex items-center justify-center gap-3 group transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>Enviar Mensaje</span>
-                <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
+                {isSubmitting ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Enviando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Enviar Mensaje</span>
+                    <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
+                  </>
+                )}
               </button>
+
+              <p className="text-white/60 text-sm text-center">
+                * Campos obligatorios
+              </p>
             </form>
           </div>
         </div>

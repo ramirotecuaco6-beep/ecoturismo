@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useDarkMode } from "../context/DarkModeContext"; // 👈 De "contexts" a "context"import { updateProfile, updatePassword } from "firebase/auth";
+import { useDarkMode } from "../context/DarkModeContext";
+// ✅ CORRECCIÓN: Importar updateProfile y updatePassword desde firebase/auth
+import { updateProfile, updatePassword } from "firebase/auth";
 import {
   FaFacebook,
   FaInstagram,

@@ -10,16 +10,51 @@ const router = express.Router();
 console.log("✅ userRoutes.js cargado correctamente");
 
 // ============================================================
-// 🔹 CONFIGURACIÓN MULTER PARA ARCHIVOS EN MEMORIA
+// 🔹 CONFIGURACIÓN MULTER PARA ARCHIVOS EN MEMORIA (FOTOS + VIDEOS)
 // ============================================================
 const storage = multer.memoryStorage();
+
+// 🔥 CORREGIDO: File filter mejorado que acepta por MIME type Y por extensión
 const fileFilter = (req, file, cb) => {
-  if (file.mimetype.startsWith("image/")) cb(null, true);
-  else cb(new Error("❌ Solo se permiten archivos de imagen"), false);
+  console.log('🔍 Verificando tipo de archivo:', {
+    mimetype: file.mimetype,
+    originalname: file.originalname
+  });
+
+  // Permitir cualquier archivo que tenga extensión de video/imagen
+  const allowedExtensions = [
+    // Imágenes
+    '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg',
+    // Videos
+    '.mov', '.mp4', '.webm', '.ogg', '.avi', '.3gp', '.mpeg', '.mkv', '.flv', '.wmv'
+  ];
+  
+  const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'));
+  
+  if (file.mimetype.startsWith("image/") || 
+      file.mimetype.startsWith("video/") || 
+      file.mimetype === 'application/octet-stream' ||
+      allowedExtensions.includes(fileExtension)) {
+    console.log('✅ Archivo aceptado:', {
+      mimetype: file.mimetype,
+      extension: fileExtension
+    });
+    return cb(null, true);
+  }
+
+  console.log('❌ Tipo de archivo no permitido:', {
+    mimetype: file.mimetype,
+    extension: fileExtension
+  });
+  cb(new Error("❌ Formato de archivo no soportado"), false);
 };
+
 const upload = multer({
   storage,
-  limits: { fileSize: 40 * 1024 * 1024 }, // 40MB
+  limits: { 
+    fileSize: 500 * 1024 * 1024,
+    files: 1
+  },
   fileFilter,
 });
 
@@ -122,12 +157,24 @@ router.post("/sync", verifyFirebaseToken, async (req, res) => {
 });
 
 // ============================================================
-// 🔹 GALERÍA PÚBLICA (sin token)
+// 🔹 GALERÍA PÚBLICA (sin token) - AHORA CON VIDEOS
 // ============================================================
 router.get("/all-photos", async (req, res) => {
   try {
     const photos = await UserPhoto.find({ isPublic: true }).sort({ uploadedAt: -1 });
-    res.json({ success: true, total: photos.length, photos });
+    
+    console.log(`📷 Galería pública: ${photos.length} medios (fotos + videos)`);
+    
+    res.json({ 
+      success: true, 
+      total: photos.length, 
+      photos,
+      // 🔥 NUEVO: Estadísticas de tipos
+      stats: {
+        images: photos.filter(p => p.mediaType === 'image').length,
+        videos: photos.filter(p => p.mediaType === 'video').length
+      }
+    });
   } catch (err) {
     console.error("❌ Error cargando galería pública:", err);
     res.status(500).json({ success: false, error: "Error al cargar galería pública" });
@@ -135,13 +182,25 @@ router.get("/all-photos", async (req, res) => {
 });
 
 // ============================================================
-// 🔹 GALERÍA PERSONAL (requiere autenticación)
+// 🔹 GALERÍA PERSONAL (requiere autenticación) - AHORA CON VIDEOS
 // ============================================================
 router.get("/photos", verifyFirebaseToken, async (req, res) => {
   try {
     const uid = req.user.uid;
     const photos = await UserPhoto.find({ userId: uid }).sort({ uploadedAt: -1 });
-    res.json({ success: true, total: photos.length, photos });
+    
+    console.log(`📷 Galería personal de ${uid}: ${photos.length} medios`);
+    
+    res.json({ 
+      success: true, 
+      total: photos.length, 
+      photos,
+      // 🔥 NUEVO: Estadísticas de tipos
+      stats: {
+        images: photos.filter(p => p.mediaType === 'image').length,
+        videos: photos.filter(p => p.mediaType === 'video').length
+      }
+    });
   } catch (err) {
     console.error("❌ Error obteniendo fotos de galería:", err);
     res.status(500).json({ success: false, error: "Error al obtener las fotos" });
@@ -206,7 +265,7 @@ router.get("/info", verifyFirebaseToken, async (req, res) => {
 });
 
 // ============================================================
-// 🔹 SUBIR FOTO DE PERFIL (VERSIÓN CORREGIDA)
+// 🔹 SUBIR MEDIA (FOTOS + VIDEOS) - VERSIÓN PARA VIDEOS LARGOS
 // ============================================================
 router.post("/upload-photo", verifyFirebaseToken, upload.single("photo"), async (req, res) => {
   try {
@@ -217,24 +276,122 @@ router.post("/upload-photo", verifyFirebaseToken, upload.single("photo"), async 
       });
     }
 
-    const uid = req.user.uid;
-    const type = req.body.type || "gallery";
-    const folder = type === "profile" ? "ecoturismo_perfiles" : "ecoturismo_uploads";
-
-    console.log('📸 Subiendo foto para usuario:', uid, 'Tipo:', type);
-
-    // ☁️ Subir a Cloudinary
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder },
-        (error, result) => (error ? reject(error) : resolve(result))
-      );
-      stream.end(req.file.buffer);
+    console.log('📸 Archivo recibido:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: (req.file.size / (1024 * 1024)).toFixed(2) + ' MB',
+      type: req.file.mimetype.startsWith('video/') ? 'video' : 'image'
     });
 
-    console.log('✅ Foto subida a Cloudinary:', result.secure_url);
+    // 🔥 NUEVO: Validación específica para videos largos
+    const isVideo = req.file.mimetype.startsWith('video/') || req.file.mimetype === 'application/octet-stream';
+    if (isVideo && req.file.size > 500 * 1024 * 1024) {
+      return res.status(400).json({
+        success: false,
+        error: "El video es demasiado grande. Máximo 500MB permitido."
+      });
+    }
+
+    const uid = req.user.uid;
+    const type = req.body.type || "gallery";
+    
+    // Determinar folder y resource_type basado en el tipo de archivo
+    const folder = type === "profile" 
+      ? "ecoturismo_perfiles" 
+      : (isVideo ? "ecoturismo_videos" : "ecoturismo_uploads");
+    
+    const resourceType = isVideo ? "video" : "image";
+
+    console.log('☁️ Subiendo a Cloudinary...', { 
+      folder, 
+      resourceType,
+      isVideo,
+      fileSize: (req.file.size / (1024 * 1024)).toFixed(2) + ' MB'
+    });
+
+    // ☁️ CONFIGURACIÓN CLOUDINARY OPTIMIZADA PARA VIDEOS LARGOS
+    const uploadOptions = {
+      folder: folder,
+      resource_type: resourceType,
+      quality: "auto",
+      fetch_format: "auto",
+      timeout: 300000, // 🔥 AUMENTADO A 5 MINUTOS para videos largos
+      chunk_size: 10 * 1024 * 1024, // 🔥 AUMENTADO A 10MB chunks
+    };
+
+    // Para videos, agregar opciones específicas optimizadas
+    if (isVideo) {
+      uploadOptions.video_codec = "h264";
+      uploadOptions.audio_codec = "aac";
+      uploadOptions.quality = "auto:good";
+      uploadOptions.bit_rate = "1500k"; // 🔥 Bitrate controlado para calidad/tiempo balance
+      
+      // 🔥 NUEVO: Configuración para videos largos
+      uploadOptions.eager_async = true; // Procesamiento asíncrono
+      uploadOptions.eager_notification_url = null; // Sin notificación (más simple)
+    }
+
+    console.log('⚙️ Opciones de Cloudinary:', uploadOptions);
+
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            console.error('❌ Error Cloudinary:', error);
+            
+            // 🔥 MEJORES MENSAJES DE ERROR
+            if (error.message.includes('File size too large')) {
+              reject(new Error('Cloudinary: El archivo es demasiado grande para el plan actual'));
+            } else if (error.message.includes('timeout')) {
+              reject(new Error('Cloudinary: Tiempo de espera agotado. El video es muy largo.'));
+            } else if (error.message.includes('Duration too long')) {
+              reject(new Error('Cloudinary: El video es demasiado largo para el plan actual'));
+            } else {
+              reject(new Error(`Cloudinary: ${error.message}`));
+            }
+          } else {
+            console.log('✅ Upload Cloudinary exitoso:', {
+              url: result.secure_url,
+              type: result.resource_type,
+              size: (result.bytes / (1024 * 1024)).toFixed(2) + ' MB',
+              format: result.format,
+              duration: result.duration,
+              duration_formatted: result.duration ? `${Math.floor(result.duration / 60)}:${Math.floor(result.duration % 60).toString().padStart(2, '0')}` : 'N/A'
+            });
+            resolve(result);
+          }
+        }
+      );
+
+      uploadStream.on('error', (streamError) => {
+        console.error('❌ Error en stream de upload:', streamError);
+        reject(new Error('Error en el proceso de upload: ' + streamError.message));
+      });
+
+      // 🔥 MEJOR MANEJO DEL STREAM PARA ARCHIVOS GRANDES
+      try {
+        uploadStream.end(req.file.buffer);
+      } catch (streamError) {
+        console.error('❌ Error escribiendo en el stream:', streamError);
+        reject(new Error('Error procesando el archivo: ' + streamError.message));
+      }
+    });
+
+    console.log('✅ Media subido a Cloudinary:', result.secure_url);
+
+    // 🔥 NUEVO: Determinar el tipo de media para guardar en BD
+    const mediaType = result.resource_type === 'video' ? 'video' : 'image';
 
     if (type === "profile") {
+      // Para perfil, solo permitir imágenes
+      if (mediaType === 'video') {
+        return res.status(400).json({
+          success: false,
+          error: "Los videos no pueden usarse como foto de perfil"
+        });
+      }
+
       // Usar findOrCreate para manejar usuario existente o nuevo
       const user = await User.findOrCreate({
         uid: uid,
@@ -261,50 +418,63 @@ router.post("/upload-photo", verifyFirebaseToken, upload.single("photo"), async 
       });
     }
 
-    // Guardar foto en UserPhoto para galería
-    const newPhoto = new UserPhoto({
+    // Guardar en UserPhoto para galería (fotos y videos)
+    const newMedia = new UserPhoto({
       userId: uid,
       url: result.secure_url,
       publicId: result.public_id,
       type: "gallery",
-      description: req.body.description || "Foto subida por el usuario",
+      mediaType: mediaType, // 🔥 NUEVO: 'image' o 'video'
+      description: req.body.description || (mediaType === 'video' ? "Video subido por el usuario" : "Foto subida por el usuario"),
       location: req.body.location || "No especificada",
-      isPublic: true,
+      isPublic: req.body.isPublic !== 'false', // Por defecto true
       uploadedAt: new Date(),
       cloudinaryData: {
+        resource_type: result.resource_type,
         format: result.format,
         bytes: result.bytes,
         width: result.width,
         height: result.height,
+        duration: result.duration, // ⭐ Solo para videos
+        video_codec: result.video_codec, // ⭐ Solo para videos
+        duration_formatted: result.duration ? `${Math.floor(result.duration / 60)}:${Math.floor(result.duration % 60).toString().padStart(2, '0')}` : null
       },
     });
 
-    await newPhoto.save();
+    await newMedia.save();
 
     res.json({
       success: true,
-      message: "✅ Foto subida correctamente a la galería",
-      photo: newPhoto,
+      message: mediaType === 'video' 
+        ? `✅ Video subido correctamente (${newMedia.cloudinaryData.duration_formatted || 'Duración no disponible'})` 
+        : "✅ Foto subida correctamente a la galería",
+      photo: newMedia,
+      mediaType: mediaType // 🔥 NUEVO: Para que el frontend sepa qué tipo es
     });
+
   } catch (err) {
-    console.error("❌ Error al subir foto:", err);
+    console.error("❌ Error al subir media:", err);
     
-    if (err.code === 11000) {
-      return res.status(400).json({ 
-        success: false,
-        error: "Error de duplicación. Contacta al administrador." 
-      });
+    let errorMessage = "Error al subir el archivo";
+    if (err.message.includes('File size too large')) {
+      errorMessage = "El archivo es demasiado grande. Máximo 500MB permitido.";
+    } else if (err.message.includes('timeout')) {
+      errorMessage = "La subida tardó demasiado. Intenta con un video más corto o comprime el archivo.";
+    } else if (err.message.includes('Duration too long')) {
+      errorMessage = "El video es demasiado largo. Máximo 10 minutos recomendado.";
+    } else if (err.message.includes('Cloudinary')) {
+      errorMessage = "Error del servicio de almacenamiento: " + err.message.replace('Cloudinary: ', '');
     }
     
     res.status(500).json({ 
       success: false,
-      error: "Error al subir la foto: " + err.message 
+      error: errorMessage 
     });
   }
 });
 
 // ============================================================
-// 🔹 ACTUALIZAR FOTO DE PERFIL DIRECTAMENTE
+// 🔹 ACTUALIZAR FOTO DE PERFIL DIRECTAMENTE (SOLO IMÁGENES)
 // ============================================================
 router.post("/update-profile-photo", verifyFirebaseToken, upload.single("photo"), async (req, res) => {
   try {
@@ -312,6 +482,14 @@ router.post("/update-profile-photo", verifyFirebaseToken, upload.single("photo")
       return res.status(400).json({ 
         success: false,
         error: "Falta el archivo de imagen" 
+      });
+    }
+
+    // Validar que sea imagen, no video
+    if (req.file.mimetype.startsWith('video/') || req.file.mimetype === 'application/octet-stream') {
+      return res.status(400).json({
+        success: false,
+        error: "Los videos no pueden usarse como foto de perfil"
       });
     }
 
@@ -359,7 +537,7 @@ router.post("/update-profile-photo", verifyFirebaseToken, upload.single("photo")
 });
 
 // ============================================================
-// 🔹 ELIMINAR FOTO DE GALERÍA
+// 🔹 ELIMINAR MEDIA DE GALERÍA (FOTOS + VIDEOS)
 // ============================================================
 router.delete("/photos/:photoId", verifyFirebaseToken, async (req, res) => {
   try {
@@ -371,117 +549,75 @@ router.delete("/photos/:photoId", verifyFirebaseToken, async (req, res) => {
     if (!photo) {
       return res.status(404).json({
         success: false,
-        error: "Foto no encontrada o no tienes permisos"
+        error: "Media no encontrado o no tienes permisos"
       });
     }
 
-    // Eliminar de Cloudinary
-    await cloudinary.uploader.destroy(photo.publicId);
+    // Eliminar de Cloudinary - usar resource_type correcto
+    const resourceType = photo.mediaType === 'video' ? 'video' : 'image';
+    await cloudinary.uploader.destroy(photo.publicId, { resource_type: resourceType });
 
     // Eliminar de la base de datos
     await UserPhoto.findByIdAndDelete(photoId);
 
     res.json({
       success: true,
-      message: "✅ Foto eliminada correctamente"
+      message: `✅ ${photo.mediaType === 'video' ? 'Video' : 'Foto'} eliminado correctamente`
     });
   } catch (err) {
-    console.error("❌ Error eliminando foto:", err);
+    console.error("❌ Error eliminando media:", err);
     res.status(500).json({
       success: false,
-      error: "Error al eliminar la foto"
+      error: "Error al eliminar el media"
     });
   }
 });
+
 // ============================================================
-// 🔹 ACTUALIZAR FOTO DE GALERÍA
+// 🔹 ACTUALIZAR MEDIA DE GALERÍA (FOTOS + VIDEOS)
 // ============================================================
 router.put("/photos/:photoId", verifyFirebaseToken, async (req, res) => {
   try {
     const uid = req.user.uid;
     const photoId = req.params.photoId;
-    const { description, location } = req.body;
+    const { description, location, isPublic } = req.body;
 
-    console.log('🔄 Actualizando foto:', { photoId, uid, description, location });
+    console.log('🔄 Actualizando media:', { photoId, uid, description, location });
 
     const photo = await UserPhoto.findOne({ _id: photoId, userId: uid });
 
     if (!photo) {
       return res.status(404).json({
         success: false,
-        error: "Foto no encontrada o no tienes permisos"
+        error: "Media no encontrado o no tienes permisos"
       });
     }
 
     // Actualizar campos
     if (description !== undefined) photo.description = description;
     if (location !== undefined) photo.location = location;
+    if (isPublic !== undefined) photo.isPublic = isPublic;
     
     photo.updatedAt = new Date();
 
     await photo.save();
 
-    console.log('✅ Foto actualizada correctamente');
+    console.log('✅ Media actualizado correctamente');
 
     res.json({
       success: true,
-      message: "✅ Foto actualizada correctamente",
+      message: `✅ ${photo.mediaType === 'video' ? 'Video' : 'Foto'} actualizado correctamente`,
       photo: photo
     });
   } catch (err) {
-    console.error("❌ Error actualizando foto:", err);
+    console.error("❌ Error actualizando media:", err);
     res.status(500).json({
       success: false,
-      error: "Error al actualizar la foto"
+      error: "Error al actualizar el media"
     });
   }
 });
 
-// ============================================================
-// 🔹 ELIMINAR FOTO DE GALERÍA (VERSIÓN MEJORADA)
-// ============================================================
-router.delete("/photos/:photoId", verifyFirebaseToken, async (req, res) => {
-  try {
-    const uid = req.user.uid;
-    const photoId = req.params.photoId;
-
-    console.log('🗑️ Eliminando foto:', { photoId, uid });
-
-    const photo = await UserPhoto.findOne({ _id: photoId, userId: uid });
-
-    if (!photo) {
-      return res.status(404).json({
-        success: false,
-        error: "Foto no encontrada o no tienes permisos"
-      });
-    }
-
-    // Eliminar de Cloudinary
-    try {
-      await cloudinary.uploader.destroy(photo.publicId);
-      console.log('✅ Foto eliminada de Cloudinary');
-    } catch (cloudinaryError) {
-      console.error('⚠️ Error eliminando de Cloudinary:', cloudinaryError);
-      // Continuar aunque falle Cloudinary para eliminar de la base de datos
-    }
-
-    // Eliminar de la base de datos
-    await UserPhoto.findByIdAndDelete(photoId);
-
-    console.log('✅ Foto eliminada de la base de datos');
-
-    res.json({
-      success: true,
-      message: "✅ Foto eliminada correctamente"
-    });
-  } catch (err) {
-    console.error("❌ Error eliminando foto:", err);
-    res.status(500).json({
-      success: false,
-      error: "Error al eliminar la foto"
-    });
-  }
-});
 // ============================================================
 // 🔹 LIMPIAR USUARIOS TEMPORALES (para administración)
 // ============================================================
