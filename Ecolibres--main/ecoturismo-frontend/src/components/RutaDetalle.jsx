@@ -12,7 +12,7 @@ import { setupLeafletIcons } from "./utils/mapUtils";
 import { useGeolocation } from "./hooks/useGeolocation";
 import { useRouteCalculation } from "./hooks/useRouteCalculation";
 import { useNavigation } from "./hooks/useNavigation";
-import { useDarkMode } from "../context/DarkModeContext"; // ✅ Importar el contexto
+import { useDarkMode } from "../context/DarkModeContext";
 
 // Componentes modulares
 import ImageCarousel from "./PlaceInfo/ImageCarousel";
@@ -28,7 +28,7 @@ setupLeafletIcons();
 const RutaDetalle = () => {
   const { nombreLugar } = useParams();
   const navigate = useNavigate();
-  const { darkMode } = useDarkMode(); // ✅ Obtener el estado del modo oscuro
+  const { darkMode } = useDarkMode();
   
   // Estados del componente
   const [lugarActual, setLugarActual] = useState(null);
@@ -87,7 +87,6 @@ const RutaDetalle = () => {
     console.log("🔄 Normalizando coordenadas:", lugar.coordenadas);
     console.log("📊 Tipo de coordenadas:", typeof lugar.coordenadas);
     console.log("🔍 Es array?:", Array.isArray(lugar.coordenadas));
-    console.log("🔍 Keys del objeto:", Object.keys(lugar.coordenadas));
     
     let lat, lng;
     
@@ -181,7 +180,6 @@ const RutaDetalle = () => {
                 console.log("🔄 Coordenadas normalizadas:", lugarFinal.coordenadas);
               } else {
                 console.warn("⚠️ No se pudieron normalizar las coordenadas, usando coordenadas reales de Puebla");
-                // Coordenadas reales de lugares en Puebla
                 const coordenadasReales = {
                   "Grutas de Xonotla": [19.8546, -97.3556],
                   "Río Libres": [19.8000, -97.4000]
@@ -195,7 +193,6 @@ const RutaDetalle = () => {
             }
           } catch (errId) {
             console.warn("❌ No se encontró por ID, intentando por nombre...");
-            // Si falla por ID, intentar por nombre
             try {
               const res = await apiService.getLugarPorNombre(decodedNombre);
               if (mounted && res) {
@@ -210,7 +207,6 @@ const RutaDetalle = () => {
                   console.log("🔄 Coordenadas normalizadas:", lugarFinal.coordenadas);
                 } else {
                   console.warn("⚠️ No se pudieron normalizar las coordenadas, usando coordenadas reales de Puebla");
-                  // Coordenadas reales de lugares en Puebla
                   const coordenadasReales = {
                     "Grutas de Xonotla": [19.8546, -97.3556],
                     "Río Libres": [19.8000, -97.4000]
@@ -228,15 +224,12 @@ const RutaDetalle = () => {
           }
         } else {
           console.log("📋 El parámetro parece un nombre, buscando por nombre...");
-          // Buscar por nombre
           try {
             const res = await apiService.getLugarPorNombre(decodedNombre);
             if (mounted && res) {
               const lugarFinal = res.lugar || res;
               console.log("✅ Lugar encontrado por nombre:", lugarFinal.nombre);
               console.log("📍 Coordenadas originales:", lugarFinal.coordenadas);
-              console.log("📊 Tipo de coordenadas:", typeof lugarFinal.coordenadas);
-              console.log("🔍 Es array?:", Array.isArray(lugarFinal.coordenadas));
               
               // Normalizar coordenadas
               const coordenadasNormalizadas = normalizarCoordenadas(lugarFinal);
@@ -245,7 +238,6 @@ const RutaDetalle = () => {
                 console.log("🔄 Coordenadas normalizadas:", lugarFinal.coordenadas);
               } else {
                 console.warn("⚠️ No se pudieron normalizar las coordenadas, usando coordenadas reales de Puebla");
-                // Coordenadas reales de lugares en Puebla
                 const coordenadasReales = {
                   "Grutas de Xonotla": [19.8546, -97.3556],
                   "Río Libres": [19.8000, -97.4000]
@@ -284,7 +276,6 @@ const RutaDetalle = () => {
                 console.log("🔄 Coordenadas normalizadas:", matchByName.coordenadas);
               } else {
                 console.warn("⚠️ No se pudieron normalizar las coordenadas, usando coordenadas reales de Puebla");
-                // Coordenadas reales de lugares en Puebla
                 const coordenadasReales = {
                   "Grutas de Xonotla": [19.8546, -97.3556],
                   "Río Libres": [19.8000, -97.4000]
@@ -312,17 +303,15 @@ const RutaDetalle = () => {
     };
   }, [nombreLugar]);
 
-  // DEBUG: Verificar qué coordenadas se están pasando al mapa
+  // DEBUG: Verificar qué datos se están cargando
   useEffect(() => {
     if (lugarActual) {
-      console.log("🎯 ===== DATOS FINALES PARA EL MAPA =====");
+      console.log("🎯 ===== DATOS FINALES CARGADOS =====");
       console.log("📍 Lugar:", lugarActual.nombre);
       console.log("🎯 Coordenadas destino:", lugarActual.coordenadas);
-      console.log("📌 Tipo de coordenadas:", typeof lugarActual.coordenadas);
-      console.log("🔍 Es array?:", Array.isArray(lugarActual.coordenadas));
-      console.log("🗺️ ¿Son coordenadas de CDMX?:", 
-        lugarActual.coordenadas[0] === 19.4326 && lugarActual.coordenadas[1] === -99.1332
-      );
+      console.log("🖼️ imagen_url:", lugarActual.imagen_url);
+      console.log("📸 imagenes array:", lugarActual.imagenes);
+      console.log("🔍 Estructura completa:", lugarActual);
     }
   }, [lugarActual]);
 
@@ -371,9 +360,6 @@ const RutaDetalle = () => {
     console.log("🚀 ===== INICIANDO NAVEGACIÓN =====");
     console.log("📍 Lugar actual:", lugarActual?.nombre);
     console.log("🎯 Coordenadas destino:", lugarActual?.coordenadas);
-    console.log("🗺️ ¿Son coordenadas de CDMX?:", 
-      lugarActual?.coordenadas[0] === 19.4326 && lugarActual?.coordenadas[1] === -99.1332
-    );
 
     if (!lugarActual?.coordenadas) {
       setCurrentInstruction("❌ Coordenadas del destino no disponibles");
@@ -416,7 +402,6 @@ const RutaDetalle = () => {
     } catch (error) {
       console.error("Error en navegación:", error);
       
-      // Mensajes de error específicos
       let errorMessage = "❌ " + error.message;
       if (error.message.includes("denied")) {
         errorMessage = "❌ Permiso de ubicación denegado. Por favor habilita la ubicación en tu navegador.";
@@ -557,13 +542,16 @@ const RutaDetalle = () => {
     );
   }
 
-  // Normalizar lista de imágenes
+  // Normalizar lista de imágenes - VERSIÓN CORREGIDA
   const imagenes = 
-    lugarActual.imagenes && lugarActual.imagenes.length > 0 
+    lugarActual.imagenes && Array.isArray(lugarActual.imagenes) && lugarActual.imagenes.length > 0 
       ? lugarActual.imagenes 
       : lugarActual.imagen_url 
         ? [lugarActual.imagen_url] 
         : [];
+
+  console.log("🖼️ DEBUG - Imágenes para carrusel:", imagenes);
+  console.log("📊 Cantidad de imágenes:", imagenes.length);
 
   return (
     <section className={`pt-24 pb-16 min-h-screen px-6 transition-all duration-500 ${
@@ -599,15 +587,16 @@ const RutaDetalle = () => {
           <h4 className={`font-semibold mb-2 transition-colors duration-300 ${
             darkMode ? 'text-blue-300' : 'text-blue-800'
           }`}>
-            🔍 Información de Debug - MAPA
+            🔍 Información de Debug
           </h4>
           <div className={`text-sm space-y-1 transition-colors duration-300 ${
             darkMode ? 'text-blue-200' : 'text-blue-700'
           }`}>
             <div><strong>Lugar:</strong> {lugarActual.nombre}</div>
             <div><strong>Coordenadas destino:</strong> {JSON.stringify(lugarActual.coordenadas)}</div>
-            <div><strong>¿Son CDMX?:</strong> {lugarActual.coordenadas[0] === 19.4326 && lugarActual.coordenadas[1] === -99.1332 ? "SÍ ⚠️" : "NO ✅"}</div>
-            <div><strong>Parámetro URL:</strong> {nombreLugar}</div>
+            <div><strong>imagen_url:</strong> {lugarActual.imagen_url ? 'PRESENTE' : 'AUSENTE'}</div>
+            <div><strong>imagenes array:</strong> {lugarActual.imagenes ? `Array(${lugarActual.imagenes.length})` : 'AUSENTE'}</div>
+            <div><strong>Imágenes para carrusel:</strong> {imagenes.length}</div>
           </div>
         </div>
 
@@ -630,30 +619,44 @@ const RutaDetalle = () => {
           </div>
         )}
 
-        {/* Carrusel de imágenes */}
-        {imagenes.length > 0 ? (
-          <ImageCarousel 
-            imagenes={imagenes}
-            currentSlide={currentSlide}
-            setCurrentSlide={setCurrentSlide}
-          />
-        ) : (
-          <motion.div 
-            className={`relative w-full h-96 rounded-2xl overflow-hidden shadow-xl mb-6 transition-all duration-300 ${
-              darkMode ? 'bg-gray-700' : 'bg-gray-200'
-            }`} 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }}
-          >
-            <div className="w-full h-full flex items-center justify-center">
-              <span className={`transition-colors duration-300 ${
-                darkMode ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                No hay imágenes disponibles
-              </span>
-            </div>
-          </motion.div>
-        )}
+        {/* 🔥 CARRUSEL DE IMÁGENES - VERSIÓN CORREGIDA */}
+        <div className="mb-8">
+          {imagenes.length > 0 ? (
+            <ImageCarousel 
+              media={imagenes}  
+              currentSlide={currentSlide}
+              setCurrentSlide={setCurrentSlide}
+            />
+          ) : (
+            <motion.div 
+              className={`relative w-full h-96 rounded-2xl overflow-hidden shadow-xl transition-all duration-300 ${
+                darkMode ? 'bg-gray-700' : 'bg-gray-200'
+              }`} 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }}
+            >
+              <div className="w-full h-full flex flex-col items-center justify-center">
+                <span className={`text-6xl mb-4 transition-colors duration-300 ${
+                  darkMode ? 'text-gray-500' : 'text-gray-400'
+                }`}>
+                  🖼️
+                </span>
+                <span className={`transition-colors duration-300 ${
+                  darkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>
+                  No hay imágenes disponibles para este lugar
+                </span>
+                {/* Debug info */}
+                <div className={`mt-4 p-3 rounded-lg text-sm ${
+                  darkMode ? 'bg-gray-600 text-gray-300' : 'bg-gray-100 text-gray-600'
+                }`}>
+                  <p>Debug: imagen_url = {lugarActual.imagen_url ? 'PRESENTE' : 'AUSENTE'}</p>
+                  <p>Debug: imagenes = {lugarActual.imagenes ? `Array(${lugarActual.imagenes.length})` : 'AUSENTE'}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </div>
 
         {/* Información del lugar */}
         <PlaceDetails 
